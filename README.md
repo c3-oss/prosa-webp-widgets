@@ -16,7 +16,7 @@ Each image is rendered at `2260x696` pixels from a `1130x348` logical widget.
 ## Preview With Mock Data
 
 ```bash
-just run -- render --mock --out ./out/mock
+just run render --mock --out ./out/mock
 ```
 
 The command writes all five files under `out/mock/`.
@@ -27,7 +27,7 @@ The command writes all five files under `out/mock/`.
 export PROSA_SERVER_URL='https://prosa.example.com'
 export PROSA_APP_TOKEN='prosa_app_...'
 
-just run -- render --last 30d --out ./out/prod
+just run render --last 30d --out ./out/prod
 ```
 
 ## Upload To S3
@@ -40,7 +40,7 @@ export AWS_SECRET_ACCESS_KEY='...'
 export S3_PREFIX='prosa-widgets'
 export S3_PUBLIC_BASE_URL='https://cdn.example.com'
 
-just run -- render --last 30d --out ./out/prod --upload
+just run render --last 30d --out ./out/prod --upload
 ```
 
 Optional:
