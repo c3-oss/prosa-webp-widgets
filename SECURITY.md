@@ -1,30 +1,49 @@
 # Security Policy
 
-## Supported Versions
+## Supported Version
 
-This repository is a project template. Security fixes apply to the current
-`master` branch and to generated projects after they adopt the fix.
+Security fixes are maintained on the current `master` branch of
+`c3-oss/prosa-webp-widgets`.
+
+## Application Scope
+
+`prosa-webp-widgets` is a Go command-line renderer that produces static WebP
+widgets from Prosa analytics data. It reads Prosa API credentials and optional
+S3 upload credentials from the runtime environment, renders widgets through
+Chromium, and writes WebP files to local storage or the configured S3 bucket.
+
+The Docker image builds a static Go binary and runs it on
+`debian:bookworm-slim` with Chromium, CA certificates, and DejaVu fonts
+installed. The container entrypoint is `/usr/local/bin/prosa-webp-widgets`.
+
+## Repository Security Controls
+
+Pull requests to `master` run the repository CI workflow:
+
+- Markdown and link linting plus `gitleaks` secret scanning through
+  `just quality`.
+- Go module tidy verification, `go vet`, race-enabled tests, `golangci-lint`,
+  and builds on Ubuntu and macOS.
+- `gosec` static security analysis through `just lint-sec`.
+- `govulncheck` vulnerability scanning through `just lint-vuln`.
+
+Dependabot checks Go modules, GitHub Actions, npm tooling, and Docker
+dependencies weekly. Tagged releases use GoReleaser with Syft to publish
+per-archive SPDX SBOMs and SHA-256 checksums.
 
 ## Reporting a Vulnerability
 
-Please do not report security vulnerabilities through public GitHub issues.
+Do not report security vulnerabilities through public GitHub issues.
 
 Send a private report to [security@c3.do](mailto:security@c3.do) with:
 
-- A short description of the issue
-- Steps to reproduce or validate it
-- Affected files, versions, or generated-project behavior
-- Any known exploitability or impact
+- A short description of the vulnerability.
+- Steps to reproduce or validate the issue.
+- The affected command, configuration, environment variable, image, or release.
+- The expected impact, including any credential exposure, unauthorized access,
+  data integrity issue, or supply-chain concern.
+- Any safe proof of concept or relevant logs with secrets removed.
 
-The maintainers will acknowledge the report, triage the impact, and coordinate a
-fix before public disclosure when appropriate.
-
-## Template Security Baseline
-
-Generated projects start with:
-
-- `gitleaks` secret scanning
-- `gosec` static security analysis
-- `govulncheck` dependency and call-path scanning
-- GoReleaser SBOM generation via Syft
-- Distroless Docker runtime images
+The maintainers acknowledge private reports, triage the impact, prepare fixes
+on private branches when needed, and coordinate public disclosure after a fix is
+available.
