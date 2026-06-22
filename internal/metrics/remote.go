@@ -23,12 +23,18 @@ var reportNames = []string{
 	"duration_stats",
 }
 
+const DefaultHTTPTimeout = 30 * time.Second
+
 // RemoteProvider fetches analytics reports from prosa-server.
 type RemoteProvider struct {
 	client prosav1connect.AnalyticsServiceClient
 }
 
 func NewRemoteProvider(serverURL, token string) (*RemoteProvider, error) {
+	return NewRemoteProviderWithTimeout(serverURL, token, DefaultHTTPTimeout)
+}
+
+func NewRemoteProviderWithTimeout(serverURL, token string, timeout time.Duration) (*RemoteProvider, error) {
 	serverURL = strings.TrimRight(strings.TrimSpace(serverURL), "/")
 	if serverURL == "" {
 		return nil, fmt.Errorf("PROSA_SERVER_URL is required")
@@ -36,10 +42,13 @@ func NewRemoteProvider(serverURL, token string) (*RemoteProvider, error) {
 	if strings.TrimSpace(token) == "" {
 		return nil, fmt.Errorf("PROSA_APP_TOKEN is required")
 	}
+	if timeout <= 0 {
+		return nil, fmt.Errorf("HTTP timeout must be positive")
+	}
 	hc := &http.Client{Transport: appTokenTransport{
 		token: token,
 		base:  http.DefaultTransport,
-	}}
+	}, Timeout: timeout}
 	return &RemoteProvider{
 		client: prosav1connect.NewAnalyticsServiceClient(hc, serverURL),
 	}, nil
