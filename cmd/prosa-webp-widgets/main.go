@@ -7,7 +7,7 @@ package main
 import (
 	"os"
 
-	"github.com/c3-oss/go-template/internal/cli"
+	"github.com/c3-oss/prosa-webp-widgets/internal/cli"
 )
 
 func main() {
