@@ -5,10 +5,10 @@ Read this end-to-end before proposing substantial changes.
 
 ## Project shape
 
-- **Module**: declared in `go.mod`. The template ships as `github.com/c3-oss/prosa-webp-widgets`; after `./scripts/setup.sh` it will reflect your repo path.
+- **Module**: `github.com/c3-oss/prosa-webp-widgets`.
 - **Layout**:
-  - `cmd/<binary>/` — entrypoints (`main` packages). The template ships with one (`cmd/myapp/`); add more by mirroring the pattern.
-  - `internal/` — non-exportable application code (`buildinfo`, `cli`, `logging`).
+  - `cmd/prosa-webp-widgets/` — binary entrypoint.
+  - `internal/` — non-exportable application code (`buildinfo`, `cli`, `logging`, metrics, rendering, storage, widgets).
   - `pkg/` — exportable packages. Empty by default; add carefully — API stability matters here.
   - `scripts/` — small bash utilities (rename, coverage report).
   - `docs/` — long-form documentation. Architecture, design notes, runbooks.

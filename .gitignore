@@ -5,6 +5,7 @@
 /dist/
 /node_modules/
 /tmp/
+/out/
 /vendor/
 *.test
 *.out
