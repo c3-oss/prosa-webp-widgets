@@ -1,7 +1,7 @@
 set shell := ["/bin/bash", "-c"]
 
 BIN := "bin"
-DEFAULT_BINARY := "myapp"
+DEFAULT_BINARY := "prosa-webp-widgets"
 CLI := "bin/" + DEFAULT_BINARY
 
 # --------------------------------------------------------------------------------------------------

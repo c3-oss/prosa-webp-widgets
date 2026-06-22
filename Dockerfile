@@ -19,6 +19,9 @@ RUN mkdir -p /out && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
         -X github.com/c3-oss/prosa-webp-widgets/internal/buildinfo.BuildDate=${BUILD_DATE}" \
       -o /out/ ./cmd/...
 
-FROM gcr.io/distroless/static-debian12 AS myapp
-COPY --from=build /out/myapp /usr/local/bin/myapp
-ENTRYPOINT ["/usr/local/bin/myapp"]
+FROM debian:bookworm-slim AS prosa-webp-widgets
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates chromium fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/prosa-webp-widgets /usr/local/bin/prosa-webp-widgets
+ENTRYPOINT ["/usr/local/bin/prosa-webp-widgets"]

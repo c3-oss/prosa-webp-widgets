@@ -1,4 +1,4 @@
-// Package cli wires the Cobra command tree for myapp.
+// Package cli wires the Cobra command tree for prosa-webp-widgets.
 package cli
 
 import (
@@ -11,8 +11,8 @@ func newRootCmd() *cobra.Command {
 	var logLevel string
 
 	cmd := &cobra.Command{
-		Use:           "myapp",
-		Short:         "myapp — replace with a one-line summary of your application",
+		Use:           "prosa-webp-widgets",
+		Short:         "Render WebP widgets from prosa analytics",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
