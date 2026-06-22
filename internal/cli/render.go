@@ -18,20 +18,22 @@ import (
 )
 
 type renderOptions struct {
-	mock   bool
-	outDir string
-	upload bool
-	last   string
-	server string
-	token  string
+	mock    bool
+	outDir  string
+	upload  bool
+	last    string
+	server  string
+	token   string
+	timeout string
 }
 
 func newRenderCmd() *cobra.Command {
 	opts := renderOptions{
-		outDir: "out",
-		last:   "30d",
-		server: os.Getenv("PROSA_SERVER_URL"),
-		token:  os.Getenv("PROSA_APP_TOKEN"),
+		outDir:  "out",
+		last:    "30d",
+		server:  os.Getenv("PROSA_SERVER_URL"),
+		token:   os.Getenv("PROSA_APP_TOKEN"),
+		timeout: defaultHTTPTimeout(),
 	}
 	cmd := &cobra.Command{
 		Use:   "render",
@@ -46,6 +48,7 @@ func newRenderCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.last, "last", opts.last, "lookback window, such as 7d, 30d, 12h")
 	cmd.Flags().StringVar(&opts.server, "server", opts.server, "prosa server URL (default $PROSA_SERVER_URL)")
 	cmd.Flags().StringVar(&opts.token, "token", opts.token, "prosa app token (default $PROSA_APP_TOKEN)")
+	cmd.Flags().StringVar(&opts.timeout, "timeout", opts.timeout, "remote HTTP timeout (default $PROSA_HTTP_TIMEOUT or 30s)")
 	return cmd
 }
 
@@ -102,7 +105,11 @@ func providerFor(opts renderOptions) (metrics.Provider, error) {
 	if opts.mock {
 		return metrics.MockProvider{}, nil
 	}
-	return metrics.NewRemoteProvider(opts.server, opts.token)
+	timeout, err := parseHTTPTimeout(opts.timeout)
+	if err != nil {
+		return nil, err
+	}
+	return metrics.NewRemoteProviderWithTimeout(opts.server, opts.token, timeout)
 }
 
 func sinksFor(ctx context.Context, opts renderOptions) ([]storage.Sink, error) {
@@ -157,4 +164,26 @@ func parsePositiveInt(s string) (int, error) {
 		return 0, fmt.Errorf("--last must be a positive duration")
 	}
 	return n, nil
+}
+
+func defaultHTTPTimeout() string {
+	if v := strings.TrimSpace(os.Getenv("PROSA_HTTP_TIMEOUT")); v != "" {
+		return v
+	}
+	return metrics.DefaultHTTPTimeout.String()
+}
+
+func parseHTTPTimeout(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("--timeout/PROSA_HTTP_TIMEOUT must be a positive duration, such as 30s, 2m, or 500ms")
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid --timeout/PROSA_HTTP_TIMEOUT %q: use a duration such as 30s, 2m, or 500ms", s)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("--timeout/PROSA_HTTP_TIMEOUT must be positive")
+	}
+	return d, nil
 }

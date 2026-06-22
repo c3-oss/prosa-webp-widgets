@@ -45,6 +45,7 @@ just run -- render --last 30d --out ./out/prod --upload
 
 Optional:
 
+- `PROSA_HTTP_TIMEOUT` or `--timeout` to control remote fetch timeout (default `30s`).
 - `S3_ENDPOINT_URL` for S3-compatible storage.
 - `S3_ACL` for buckets that still require a canned ACL.
 - `CHROMIUM_BROWSER_BINARY_PATH` to use an existing Chrome/Chromium binary.
