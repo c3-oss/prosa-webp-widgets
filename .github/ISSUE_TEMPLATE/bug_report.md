@@ -18,7 +18,7 @@ labels: bug
 
 ## Environment
 
-- Version: <!-- `myapp version` -->
+- Version: <!-- `prosa-webp-widgets version` -->
 - OS / Arch:
 - Install method: <!-- binary, brew, docker, source -->
 
