@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"html/template"
 	"math"
+	"regexp"
 	"strings"
-	"time"
 
 	"github.com/c3-oss/prosa-webp-widgets/internal/metrics"
 )
@@ -26,43 +26,44 @@ type Widget struct {
 type view struct {
 	Kind      string
 	Title     string
-	Eyebrow   string
 	Metric    string
 	Submetric string
-	Footer    string
-	Stats     []stat
+	FootLeft  []string
+	FootRight []string
 	Bars      []bar
-	Split     []bar
+	Theme     string
+	Fonts     template.CSS
 }
 
-type stat struct {
-	Label string
-	Value string
+// seg is one value fragment: a number with an optional trailing unit.
+type seg struct {
+	Num  string
+	Unit string
 }
 
 type bar struct {
-	Label string
-	Value string
-	Share int
-	Tone  string
+	Label     string
+	Share     int
+	Primary   seg
+	Secondary seg
 }
 
-// Build returns all GitHub-profile widgets with stable file names.
+// Build returns all GitHub-profile widgets with stable file names, in both
+// light and dark themes.
 func Build(s metrics.Snapshot) ([]Widget, error) {
-	views := []view{
-		overview(s),
-		agentMix(s),
-		modelSpend(s),
-		projectFocus(s),
-		delegation(s),
-	}
-	out := make([]Widget, 0, len(views))
+	views := []view{overview(s), agentMix(s), modelSpend(s), projectFocus(s), delegation(s)}
+	themes := []struct{ class, suffix string }{{"", ""}, {"dark-mode", "-dark"}}
+	out := make([]Widget, 0, len(views)*len(themes))
 	for _, v := range views {
-		html, err := render(v)
-		if err != nil {
-			return nil, err
+		for _, th := range themes {
+			v.Theme = th.class
+			v.Fonts = fontFaces
+			html, err := render(v)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, Widget{Name: v.Kind + th.suffix + ".webp", HTML: html})
 		}
-		out = append(out, Widget{Name: v.Kind + ".webp", HTML: html})
 	}
 	return out, nil
 }
@@ -70,17 +71,13 @@ func Build(s metrics.Snapshot) ([]Widget, error) {
 func overview(s metrics.Snapshot) view {
 	return view{
 		Kind:      "overview",
-		Title:     "Prosa activity",
-		Eyebrow:   windowLabel(s),
+		Title:     "Agent activity",
 		Metric:    compact(s.TotalSessions),
 		Submetric: "sessions captured",
-		Footer:    fmt.Sprintf("generated %s", s.GeneratedAt.Local().Format("2006-01-02 15:04")),
-		Stats: []stat{
-			{Label: "tokens", Value: compact(s.TotalTokens)},
-			{Label: "est. spend", Value: money(s.EstCostUSD)},
-			{Label: "p90 duration", Value: duration(s.P90Duration)},
-		},
-		Bars: agentBars(s, 4),
+		// est appears only here, on the one financial value.
+		FootLeft:  []string{compact(s.TotalTokens) + " tokens", "est " + money(s.EstCostUSD) + " spend"},
+		FootRight: footRight(s),
+		Bars:      agentBars(s, 3),
 	}
 }
 
@@ -88,16 +85,11 @@ func agentMix(s metrics.Snapshot) view {
 	return view{
 		Kind:      "agent-mix",
 		Title:     "Agent mix",
-		Eyebrow:   windowLabel(s),
 		Metric:    compact(s.TotalTokens),
 		Submetric: "tokens across agents",
-		Footer:    "sessions, tokens, and estimated spend by agent",
-		Stats: []stat{
-			{Label: "agents", Value: compact(int64(len(s.Agents)))},
-			{Label: "input", Value: compact(s.InputTokens)},
-			{Label: "output", Value: compact(s.OutputTokens)},
-		},
-		Bars: agentBars(s, 5),
+		FootLeft:  []string{compact(int64(len(s.Agents))) + " agents", compact(s.InputTokens) + " input", compact(s.OutputTokens) + " output"},
+		FootRight: footRight(s),
+		Bars:      agentBars(s, 3),
 	}
 }
 
@@ -105,16 +97,11 @@ func modelSpend(s metrics.Snapshot) view {
 	return view{
 		Kind:      "model-spend",
 		Title:     "Model spend",
-		Eyebrow:   windowLabel(s),
 		Metric:    money(s.EstCostUSD),
 		Submetric: "estimated model cost",
-		Footer:    "costs use the pricing table embedded in prosa",
-		Stats: []stat{
-			{Label: "models", Value: compact(int64(len(s.Models)))},
-			{Label: "cached", Value: compact(s.CachedTokens)},
-			{Label: "avg duration", Value: duration(s.AvgDuration)},
-		},
-		Bars: modelBars(s, 5),
+		FootLeft:  []string{compact(int64(len(s.Models))) + " models", compact(s.CachedTokens) + " cached"},
+		FootRight: footRight(s),
+		Bars:      modelBars(s, 3),
 	}
 }
 
@@ -126,16 +113,11 @@ func projectFocus(s metrics.Snapshot) view {
 	return view{
 		Kind:      "project-focus",
 		Title:     "Project focus",
-		Eyebrow:   windowLabel(s),
 		Metric:    trimProject(top),
 		Submetric: "most active project",
-		Footer:    "project identity follows prosa remote / marker / path priority",
-		Stats: []stat{
-			{Label: "projects", Value: compact(int64(len(s.Projects)))},
-			{Label: "sessions", Value: compact(s.TotalSessions)},
-			{Label: "median", Value: duration(s.MedianDuration)},
-		},
-		Bars: projectBars(s, 5),
+		FootLeft:  []string{compact(int64(len(s.Projects))) + " projects", compact(s.TotalSessions) + " sessions"},
+		FootRight: footRight(s),
+		Bars:      projectBars(s, 3),
 	}
 }
 
@@ -151,18 +133,16 @@ func delegation(s metrics.Snapshot) view {
 	return view{
 		Kind:      "delegation",
 		Title:     "Delegation",
-		Eyebrow:   windowLabel(s),
 		Metric:    percent(s.SubagentSessions, s.DirectSessions+s.SubagentSessions),
 		Submetric: "sessions run as subagents",
-		Footer:    "direct and delegated work split by parent-session edges",
-		Stats: []stat{
-			{Label: "children", Value: compact(totalChildren)},
-			{Label: "max fanout", Value: compact(maxFanout)},
-			{Label: "sub tokens", Value: compact(s.SubagentTokens)},
-		},
-		Split: delegationSplit(s),
-		Bars:  subagentBars(s, 5),
+		FootLeft:  []string{compact(totalChildren) + " children", compact(maxFanout) + " max fanout"},
+		FootRight: footRight(s),
+		Bars:      subagentBars(s, 3),
 	}
+}
+
+func footRight(s metrics.Snapshot) []string {
+	return []string{"prosa", windowLabel(s)}
 }
 
 func render(v view) (string, error) {
@@ -184,13 +164,13 @@ func agentBars(s metrics.Snapshot, limit int) []bar {
 			break
 		}
 		out = append(out, bar{
-			Label: label(row.Name),
-			Value: fmt.Sprintf("%s sessions · %s", compact(row.Sessions), compact(row.Tokens)),
-			Share: share(row.Sessions, total),
-			Tone:  tone(i),
+			Label:     agentName(row.Name),
+			Share:     share(row.Sessions, total),
+			Primary:   seg{compact(row.Sessions), "sessions"},
+			Secondary: seg{compact(row.Tokens), ""},
 		})
 	}
-	return out
+	return normalize(out)
 }
 
 func modelBars(s metrics.Snapshot, limit int) []bar {
@@ -204,13 +184,13 @@ func modelBars(s metrics.Snapshot, limit int) []bar {
 			break
 		}
 		out = append(out, bar{
-			Label: label(row.Name),
-			Value: fmt.Sprintf("%s · %s tokens", money(row.CostUSD), compact(row.Tokens)),
-			Share: shareFloat(row.CostUSD, total),
-			Tone:  tone(i),
+			Label:     modelName(row.Name),
+			Share:     shareFloat(row.CostUSD, total),
+			Primary:   seg{money(row.CostUSD), ""},
+			Secondary: seg{compact(row.Tokens), ""},
 		})
 	}
-	return out
+	return normalize(out)
 }
 
 func projectBars(s metrics.Snapshot, limit int) []bar {
@@ -224,13 +204,12 @@ func projectBars(s metrics.Snapshot, limit int) []bar {
 			break
 		}
 		out = append(out, bar{
-			Label: trimProject(row.Name),
-			Value: fmt.Sprintf("%s sessions", compact(row.Sessions)),
-			Share: share(row.Sessions, total),
-			Tone:  tone(i),
+			Label:   trimProject(row.Name),
+			Share:   share(row.Sessions, total),
+			Primary: seg{compact(row.Sessions), "sessions"},
 		})
 	}
-	return out
+	return normalize(out)
 }
 
 func subagentBars(s metrics.Snapshot, limit int) []bar {
@@ -244,21 +223,34 @@ func subagentBars(s metrics.Snapshot, limit int) []bar {
 			break
 		}
 		out = append(out, bar{
-			Label: label(row.Agent),
-			Value: fmt.Sprintf("%s children · %s parents", compact(row.Children), compact(row.Parents)),
-			Share: share(row.Children, total),
-			Tone:  tone(i),
+			Label:     agentName(row.Agent),
+			Share:     share(row.Children, total),
+			Primary:   seg{compact(row.Children), "children"},
+			Secondary: seg{compact(row.Parents), "parents"},
 		})
 	}
-	return out
+	return normalize(out)
 }
 
-func delegationSplit(s metrics.Snapshot) []bar {
-	total := s.DirectSessions + s.SubagentSessions
-	return []bar{
-		{Label: "direct", Value: compact(s.DirectSessions), Share: share(s.DirectSessions, total), Tone: "blue"},
-		{Label: "subagent", Value: compact(s.SubagentSessions), Share: share(s.SubagentSessions, total), Tone: "orange"},
+// normalize rescales bar widths so the leader fills the track.
+func normalize(bars []bar) []bar {
+	maxShare := 0
+	for _, b := range bars {
+		if b.Share > maxShare {
+			maxShare = b.Share
+		}
 	}
+	if maxShare <= 0 {
+		return bars
+	}
+	for i := range bars {
+		w := int(math.Round(float64(bars[i].Share) / float64(maxShare) * 100))
+		if bars[i].Share > 0 && w < 8 {
+			w = 8
+		}
+		bars[i].Share = w
+	}
+	return bars
 }
 
 func windowLabel(s metrics.Snapshot) string {
@@ -292,26 +284,13 @@ func compactFloat(v float64) string {
 	return strings.TrimSuffix(s, ".0")
 }
 
+// money formats a dollar amount. The "est" qualifier is added by callers only
+// where an estimate needs flagging (e.g. the overview footer legend).
 func money(v float64) string {
 	if v == 0 {
 		return "$0"
 	}
 	return "$" + compactFloat(v)
-}
-
-func duration(d time.Duration) string {
-	if d <= 0 {
-		return "0m"
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm", int(math.Round(d.Minutes())))
-	}
-	h := int(d / time.Hour)
-	m := int((d % time.Hour) / time.Minute)
-	if m == 0 {
-		return fmt.Sprintf("%dh", h)
-	}
-	return fmt.Sprintf("%dh%02d", h, m)
 }
 
 func percent(part, total int64) string {
@@ -361,9 +340,65 @@ func trimProject(s string) string {
 	return s
 }
 
-func tone(i int) string {
-	tones := []string{"green", "blue", "orange", "pink", "violet"}
-	return tones[i%len(tones)]
+var acronyms = map[string]string{"gpt": "GPT", "ai": "AI", "cli": "CLI"}
+
+// agentName turns a raw agent slug into a display name: "claude-code" ->
+// "Claude Code", "hermes" -> "Hermes".
+func agentName(s string) string {
+	s = label(s)
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == '-' || r == '_' || r == ' ' })
+	for i, p := range parts {
+		parts[i] = word(p)
+	}
+	if len(parts) == 0 {
+		return s
+	}
+	return strings.Join(parts, " ")
+}
+
+var versionDash = regexp.MustCompile(`(\d)-(\d)`)
+
+// modelName turns a raw model id into a display name: "claude-opus-4-8" ->
+// "Opus 4.8", "gpt-5-codex" -> "GPT-5 Codex", "gemini-2.5-pro" -> "Gemini 2.5 Pro".
+func modelName(s string) string {
+	s = strings.ToLower(label(s))
+	s = strings.TrimPrefix(s, "claude-")
+	s = strings.TrimPrefix(s, "claude_")
+	s = versionDash.ReplaceAllString(s, "$1.$2")
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == '-' || r == '_' || r == ' ' })
+	if len(parts) == 0 {
+		return label(s)
+	}
+	var b strings.Builder
+	for i, p := range parts {
+		token := word(p)
+		if i > 0 {
+			if isNumber(p) && b.String() == "GPT" {
+				b.WriteByte('-')
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		b.WriteString(token)
+	}
+	return b.String()
+}
+
+func word(p string) string {
+	if p == "" {
+		return p
+	}
+	if a, ok := acronyms[p]; ok {
+		return a
+	}
+	if isNumber(p) {
+		return p
+	}
+	return strings.ToUpper(p[:1]) + p[1:]
+}
+
+func isNumber(p string) bool {
+	return p != "" && p[0] >= '0' && p[0] <= '9'
 }
 
 var widgetTemplate = template.Must(template.New("widget").Parse(`<!doctype html>
@@ -371,80 +406,73 @@ var widgetTemplate = template.Must(template.New("widget").Parse(`<!doctype html>
 <head>
 <meta charset="utf-8">
 <style>
-* { box-sizing: border-box; }
-html, body { width: 1130px; height: 348px; margin: 0; overflow: hidden; }
-body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #17202a; }
-.widget { width: 1130px; height: 348px; display: grid; grid-template-columns: 210px 1fr; background: #f5f7fb; }
-.rail { padding: 34px 28px; color: #edf5f1; background: linear-gradient(160deg, #18342f 0%, #16233d 58%, #321d34 100%); }
-.brand { font-size: 34px; line-height: 1; letter-spacing: 0; font-weight: 680; }
-.eyebrow { margin-top: 14px; color: #b7d6cc; font-size: 15px; }
-.rail-footer { position: absolute; bottom: 28px; width: 150px; color: #9db6ca; font-size: 12px; line-height: 1.35; }
-.main { padding: 30px 34px 26px; display: grid; grid-template-columns: 330px 1fr; gap: 30px; }
-.hero { min-width: 0; }
-.title { margin: 0; color: #53606d; text-transform: uppercase; font-size: 14px; font-weight: 720; letter-spacing: 0.06em; }
-.metric { margin-top: 20px; font-size: 64px; line-height: .92; font-weight: 760; letter-spacing: 0; color: #17202a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.submetric { margin-top: 10px; color: #667382; font-size: 20px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 30px; }
-.stat { border-top: 1px solid #d8dee8; padding-top: 12px; min-width: 0; }
-.stat-value { font-size: 25px; font-weight: 720; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat-label { margin-top: 4px; color: #718091; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
-.bars { display: grid; gap: 13px; align-content: center; }
-.bar-row { display: grid; grid-template-columns: 180px 1fr 150px; gap: 14px; align-items: center; min-width: 0; }
-.bar-label { font-size: 17px; font-weight: 680; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bar-track { height: 13px; border-radius: 999px; background: #dde4ec; overflow: hidden; }
-.bar-fill { height: 100%; min-width: 4px; border-radius: 999px; }
-.bar-value { color: #5e6b7a; font-size: 14px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.green { background: #1b8a6b; }
-.blue { background: #3468c7; }
-.orange { background: #d27623; }
-.pink { background: #bd4f74; }
-.violet { background: #7d5cc7; }
-.split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
-.split .bar-row { grid-template-columns: 90px 1fr 54px; }
+{{.Fonts}}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#ffffff; --card:#f6f8fa; --border:#e6eaef;
+  --text:#1f2329; --muted:#636c76; --soft:#838e9a; --softer:#aab8c4;
+  --track:#e7ebf0; --divider:#1f2329; --bar:#0969da;
+}
+.dark-mode{
+  --bg:#0d1117; --card:#161b22; --border:#272d36;
+  --text:#e6edf3; --muted:#8b949e; --soft:#717880; --softer:#3d4246;
+  --track:#262c36; --divider:#e6edf3; --bar:#4493f8;
+}
+html,body{width:1130px;height:348px;overflow:hidden;}
+body{font-family:'roboto';background:var(--bg);color:var(--text);}
+.card{position:relative;margin:25px;width:1080px;height:296px;background:var(--card);
+  border:1px solid var(--border);border-radius:30px;padding:36px 44px;}
+.eyebrow{font-size:15px;letter-spacing:3px;text-transform:uppercase;color:var(--soft);}
+.hero{font-family:'roboto-medium';font-size:62px;line-height:1.04;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.subtitle{font-family:'roboto-light';font-size:29px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.divider{border:none;border-top:1px solid var(--divider);}
+.dot{color:var(--bar);}
+.foot-left .dot,.foot-right .dot{margin:0 9px;}
+.foot-left{font-size:16px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.foot-right{font-family:'roboto-mono-light';font-size:17px;letter-spacing:1px;
+  color:var(--muted);white-space:nowrap;}
+.powered-by{position:absolute;right:26px;bottom:5px;font-size:10px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--softer);}
+.bars{display:grid;grid-template-columns:150px 130px 1fr auto auto auto;
+  column-gap:16px;row-gap:24px;align-content:center;align-items:center;min-width:0;}
+.b-name{font-family:'roboto-medium';font-size:18px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.bar-track{height:2px;border-radius:2px;background:var(--track);}
+.bar-fill{height:2px;border-radius:2px;background:var(--bar);}
+.b-val{font-family:'roboto-mono-light';font-size:15px;text-align:right;white-space:nowrap;color:var(--muted);}
+.b-val .num{color:var(--muted);}
+.b-val .unit{color:var(--soft);}
+.b-dot{font-family:'roboto-mono-light';font-size:15px;text-align:center;}
 </style>
 </head>
-<body>
-<div class="widget">
-  <aside class="rail">
-    <div class="brand">prosa</div>
-    <div class="eyebrow">{{.Eyebrow}}</div>
-    <div class="rail-footer">{{.Footer}}</div>
-  </aside>
-  <main class="main">
-    <section class="hero">
-      <h1 class="title">{{.Title}}</h1>
-      <div class="metric">{{.Metric}}</div>
-      <div class="submetric">{{.Submetric}}</div>
-      <div class="stats">
-        {{range .Stats}}
-        <div class="stat">
-          <div class="stat-value">{{.Value}}</div>
-          <div class="stat-label">{{.Label}}</div>
-        </div>
+<body class="{{.Theme}}">
+  <div class="card">
+    <div style="display:grid;grid-template-columns:0.82fr 1.18fr;gap:40px;height:178px;">
+      <div style="display:flex;flex-direction:column;justify-content:center;min-width:0;">
+        <div class="eyebrow">{{.Title}}</div>
+        <div class="hero" style="margin-top:14px;">{{.Metric}}</div>
+        <div class="subtitle" style="margin-top:10px;">{{.Submetric}}</div>
+      </div>
+      <div class="bars">
+        {{range .Bars}}
+        <div class="b-name">{{.Label}}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:{{.Share}}%"></div></div>
+        <div></div>
+        <div class="b-val"><span class="num">{{.Primary.Num}}</span>{{if .Primary.Unit}} <span class="unit">{{.Primary.Unit}}</span>{{end}}</div>
+        <div class="b-dot">{{if .Secondary.Num}}<span class="dot">·</span>{{end}}</div>
+        <div class="b-val">{{if .Secondary.Num}}<span class="num">{{.Secondary.Num}}</span>{{if .Secondary.Unit}} <span class="unit">{{.Secondary.Unit}}</span>{{end}}{{end}}</div>
         {{end}}
       </div>
-    </section>
-    <section class="bars">
-      {{if .Split}}
-      <div class="split">
-      {{range .Split}}
-        <div class="bar-row">
-          <div class="bar-label">{{.Label}}</div>
-          <div class="bar-track"><div class="bar-fill {{.Tone}}" style="width: {{.Share}}%"></div></div>
-          <div class="bar-value">{{.Value}}</div>
-        </div>
-      {{end}}
-      </div>
-      {{end}}
-      {{range .Bars}}
-      <div class="bar-row">
-        <div class="bar-label">{{.Label}}</div>
-        <div class="bar-track"><div class="bar-fill {{.Tone}}" style="width: {{.Share}}%"></div></div>
-        <div class="bar-value">{{.Value}}</div>
-      </div>
-      {{end}}
-    </section>
-  </main>
-</div>
+    </div>
+    <hr class="divider" style="margin-top:6px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:16px;">
+      <div class="foot-left">{{range $i, $s := .FootLeft}}{{if $i}}<span class="dot">·</span>{{end}}{{$s}}{{end}}</div>
+      <div class="foot-right">{{range $i, $s := .FootRight}}{{if $i}}<span class="dot">·</span>{{end}}{{$s}}{{end}}</div>
+    </div>
+  </div>
+  <div class="powered-by">powered by github.com/c3-oss/prosa-webp-widgets</div>
 </body>
 </html>`))
