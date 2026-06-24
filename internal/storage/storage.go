@@ -31,10 +31,11 @@ func (s DiskSink) Put(_ context.Context, key string, data []byte) (string, error
 		return "", fmt.Errorf("output directory is required")
 	}
 	target := filepath.Join(s.Dir, filepath.FromSlash(key))
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	// Rendered widgets are public web assets; world-readable output is intentional.
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil { // #nosec G301
 		return "", fmt.Errorf("create output dir: %w", err)
 	}
-	if err := os.WriteFile(target, data, 0o644); err != nil {
+	if err := os.WriteFile(target, data, 0o644); err != nil { // #nosec G306
 		return "", fmt.Errorf("write %s: %w", target, err)
 	}
 	return target, nil
