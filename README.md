@@ -3,15 +3,16 @@
 Static WebP widgets for GitHub profile READMEs, powered by
 [`prosa`](https://github.com/c3-oss/prosa) analytics.
 
-The renderer produces five same-size widgets:
+The renderer produces five same-size widgets, each in a light and a dark theme:
 
-- `overview.webp`
-- `agent-mix.webp`
-- `model-spend.webp`
-- `project-focus.webp`
-- `delegation.webp`
+- `overview.webp` / `overview-dark.webp`
+- `agent-mix.webp` / `agent-mix-dark.webp`
+- `model-spend.webp` / `model-spend-dark.webp`
+- `project-focus.webp` / `project-focus-dark.webp`
+- `delegation.webp` / `delegation-dark.webp`
 
-Each image is rendered at `2260x696` pixels from a `1130x348` logical widget.
+Each image is rendered at `2260x696` pixels from a `1130x348` logical widget,
+styled as a rounded GitHub-themed card with embedded Roboto fonts.
 
 ## Preview With Mock Data
 
@@ -19,7 +20,7 @@ Each image is rendered at `2260x696` pixels from a `1130x348` logical widget.
 just run render --mock --out ./out/mock
 ```
 
-The command writes all five files under `out/mock/`.
+The command writes all ten files (light and `-dark`) under `out/mock/`.
 
 ## Render From Prosa
 
@@ -45,6 +46,7 @@ just run render --last 30d --out ./out/prod --upload
 
 Optional:
 
+- `--exclude-project owner/repo` (repeatable or comma-separated) to hide projects from `project-focus`.
 - `PROSA_HTTP_TIMEOUT` or `--timeout` to control remote fetch timeout (default `30s`).
 - `S3_ENDPOINT_URL` for S3-compatible storage.
 - `S3_ACL` for buckets that still require a canned ACL.
