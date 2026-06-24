@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/c3-oss/prosa-webp-widgets/internal/metrics"
 )
 
 func TestResolveWindowParsesDaysAndDurations(t *testing.T) {
@@ -24,4 +26,18 @@ func TestResolveWindowRejectsInvalidValues(t *testing.T) {
 	require.Error(t, err)
 	_, _, err = resolveWindow("0d", time.Now())
 	require.Error(t, err)
+}
+
+func TestFilterProjectsExcludesByNameAndTail(t *testing.T) {
+	projects := []metrics.ProjectUsage{
+		{Name: "c3-oss/prosa", Sessions: 64},
+		{Name: "c3-oss/prosa-webp-widgets", Sessions: 37},
+		{Name: "upsetbit/upsetbit", Sessions: 19},
+	}
+
+	require.Equal(t, projects, filterProjects(projects, nil))
+
+	got := filterProjects(projects, []string{"c3-oss/prosa-webp-widgets", "UPSETBIT/upsetbit.git"})
+	require.Len(t, got, 1)
+	require.Equal(t, "c3-oss/prosa", got[0].Name)
 }

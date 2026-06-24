@@ -18,13 +18,14 @@ import (
 )
 
 type renderOptions struct {
-	mock    bool
-	outDir  string
-	upload  bool
-	last    string
-	server  string
-	token   string
-	timeout string
+	mock     bool
+	outDir   string
+	upload   bool
+	last     string
+	server   string
+	token    string
+	timeout  string
+	excludes []string
 }
 
 func newRenderCmd() *cobra.Command {
@@ -49,6 +50,7 @@ func newRenderCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.server, "server", opts.server, "prosa server URL (default $PROSA_SERVER_URL)")
 	cmd.Flags().StringVar(&opts.token, "token", opts.token, "prosa app token (default $PROSA_APP_TOKEN)")
 	cmd.Flags().StringVar(&opts.timeout, "timeout", opts.timeout, "remote HTTP timeout (default $PROSA_HTTP_TIMEOUT or 30s)")
+	cmd.Flags().StringSliceVar(&opts.excludes, "exclude-project", nil, "project to hide from project-focus (repeatable or comma-separated; matches owner/repo)")
 	return cmd
 }
 
@@ -65,6 +67,7 @@ func runRender(ctx context.Context, cmd *cobra.Command, opts renderOptions) erro
 	if err != nil {
 		return err
 	}
+	snap.Projects = filterProjects(snap.Projects, opts.excludes)
 	built, err := widgets.Build(snap)
 	if err != nil {
 		return err
@@ -164,6 +167,43 @@ func parsePositiveInt(s string) (int, error) {
 		return 0, fmt.Errorf("--last must be a positive duration")
 	}
 	return n, nil
+}
+
+// filterProjects drops projects named in exclude, matching either the full
+// identity or its owner/repo tail (case-insensitive, .git-insensitive).
+func filterProjects(projects []metrics.ProjectUsage, exclude []string) []metrics.ProjectUsage {
+	if len(exclude) == 0 {
+		return projects
+	}
+	hidden := make(map[string]bool, len(exclude)*2)
+	for _, e := range exclude {
+		if full := normalizeProject(e); full != "" {
+			hidden[full] = true
+			hidden[projectTail(full)] = true
+		}
+	}
+	out := make([]metrics.ProjectUsage, 0, len(projects))
+	for _, p := range projects {
+		full := normalizeProject(p.Name)
+		if hidden[full] || hidden[projectTail(full)] {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func normalizeProject(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return strings.TrimSuffix(s, ".git")
+}
+
+func projectTail(s string) string {
+	parts := strings.Split(s, "/")
+	if len(parts) >= 2 {
+		return parts[len(parts)-2] + "/" + parts[len(parts)-1]
+	}
+	return s
 }
 
 func defaultHTTPTimeout() string {
