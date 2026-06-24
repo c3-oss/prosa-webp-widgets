@@ -67,6 +67,10 @@ func (b *Browser) CaptureWebP(ctx context.Context, html string) ([]byte, error) 
 	if err := page.WaitLoad(); err != nil {
 		return nil, fmt.Errorf("wait load: %w", err)
 	}
+	if _, err := page.Eval(`() => document.fonts.ready`); err != nil {
+		return nil, fmt.Errorf("await fonts: %w", err)
+	}
+	page.MustWaitStable()
 	res, err := proto.PageCaptureScreenshot{
 		Format: proto.PageCaptureScreenshotFormatWebp,
 		Clip: &proto.PageViewport{
