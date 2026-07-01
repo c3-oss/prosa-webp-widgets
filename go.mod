@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
-	github.com/c3-oss/prosa v0.25.3-0.20260622011229-483e72f96470
+	github.com/c3-oss/prosa v0.27.3
 	github.com/go-rod/rod v0.116.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
