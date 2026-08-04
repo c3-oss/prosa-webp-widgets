@@ -20,8 +20,9 @@ markdownlint-cli2, and GoReleaser. Mileage may vary.
 - Branches off `master`. Open a PR targeting `master`.
 - Keep PRs focused. Refactors, bug fixes, and feature work belong in
   separate PRs unless the dependency is structural.
-- CI must be green before merge: `quality`, `test`, `lint`, `security`,
-  and `build / {ubuntu,macos}-latest`.
+- CI must be green before merge: `detect changes`, `ci` (the full Linux
+  lane in one job), and `build / macos-latest`. PRs touching only Markdown,
+  `docs/`, or `LICENSE` skip the Go work.
 
 ## Commit messages
 

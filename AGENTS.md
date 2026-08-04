@@ -36,8 +36,9 @@ Common tasks (run via `just <target>`):
 | `just docker-build` | local Docker image |
 | `just clean` | drop build outputs |
 
-`just tools` installs Go-based binaries (`govulncheck`, `gosec`) into
-`./bin`. Devbox does this automatically on `devbox shell` entry.
+`govulncheck` and `gosec` are pinned in `devbox.json` and resolve from the
+devbox environment. `just tools` installs them into `./bin` for setups
+without devbox.
 
 ## Coding style
 
@@ -62,8 +63,21 @@ and validated by CI.
 - The CI changelog (via GoReleaser) groups `feat` and `fix` and drops
   `docs`, `test`, `chore`, `ci`, and merge commits.
 
-PRs target `master`. CI runs five jobs that must all pass: `quality`,
-`test`, `lint`, `security`, `build` (Ubuntu + macOS matrix).
+PRs target `master`. CI runs three jobs, and they must pass before merge:
+
+- `detect changes` reads the changed paths and decides whether the Go work
+  applies. Markdown, `docs/`, and `LICENSE` alone leave it out.
+- `ci` runs the whole Linux lane sequentially in one job on `ubuntu-latest`,
+  sharing a single toolchain install: commitlint, quality gates, tidy, vet,
+  `golangci-lint`, `gosec`, `govulncheck`, race tests with coverage, and
+  build. Each check reports independently and a final step fails the job
+  with the list of checks that failed, so one red check still leaves the
+  rest visible.
+- `build / macos-latest` covers the Darwin build. It skips PRs authored by
+  Dependabot.
+
+The same lane runs on every push to `master`, which is what populates the
+caches that PR runs read.
 
 ## Hooks
 
