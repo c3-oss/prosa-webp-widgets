@@ -137,14 +137,20 @@ jobs:
 
       # Explicit save: the cache action's post step is post-if: success(), so a
       # red job (expected here while lint-vuln fails) would never write it.
-      # The key is immutable, so only save once Go work has actually populated
-      # the cache — otherwise a partial tree gets pinned under the exact key.
+      # The key is immutable, so every step that populates the cache has to
+      # have succeeded — a partial tree pinned under the exact key would be
+      # skipped by every later run and never repaired. tidy-check is included
+      # because it can rewrite go.mod/go.sum before failing, which would leave
+      # the key computed at restore time describing a tree that no longer
+      # matches what is on disk.
       - name: Save Go modules and build cache
         if: >-
           always() && !cancelled() &&
           steps.go-cache.outcome == 'success' &&
           steps.go-cache.outputs.cache-hit != 'true' &&
-          (steps.test.outcome == 'success' || steps.build.outcome == 'success')
+          steps.tidy-check.outcome == 'success' &&
+          steps.test.outcome == 'success' &&
+          steps.build.outcome == 'success'
         uses: actions/cache/save@v6
         with:
           path: |
