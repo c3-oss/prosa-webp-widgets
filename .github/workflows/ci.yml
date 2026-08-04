@@ -133,8 +133,14 @@ jobs:
 
       # Explicit save: the cache action's post step is post-if: success(), so a
       # red job (expected here while lint-vuln fails) would never write it.
+      # The key is immutable, so only save once Go work has actually populated
+      # the cache — otherwise a partial tree gets pinned under the exact key.
       - name: Save Go modules and build cache
-        if: always() && steps.go-cache.outputs.cache-hit != 'true'
+        if: >-
+          always() && !cancelled() &&
+          steps.go-cache.outcome == 'success' &&
+          steps.go-cache.outputs.cache-hit != 'true' &&
+          (steps.test.outcome == 'success' || steps.build.outcome == 'success')
         uses: actions/cache/save@v6
         with:
           path: |
@@ -190,12 +196,18 @@ jobs:
           devbox-version: 0.17.4
 
       - name: Build
+        id: build
         run: devbox run -- just build
 
       # Explicit save: the cache action's post step is post-if: success(), so a
-      # failed build would never write it.
+      # failed job would never write it. The key is immutable, so only save
+      # once the build has actually populated the cache.
       - name: Save Go modules and build cache
-        if: always() && steps.go-cache.outputs.cache-hit != 'true'
+        if: >-
+          always() && !cancelled() &&
+          steps.go-cache.outcome == 'success' &&
+          steps.go-cache.outputs.cache-hit != 'true' &&
+          steps.build.outcome == 'success'
         uses: actions/cache/save@v6
         with:
           path: |
