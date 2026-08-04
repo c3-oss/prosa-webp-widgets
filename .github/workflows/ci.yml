@@ -28,6 +28,10 @@ jobs:
         id: filter
         if: github.event_name == 'pull_request'
         with:
+          # 'every' is required: under the default 'some' a file only has to
+          # match one pattern, so '**' alone would match everything and the
+          # negations would never exclude anything.
+          predicate-quantifier: every
           filters: |
             code:
               - '**'
