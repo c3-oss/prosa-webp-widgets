@@ -56,9 +56,12 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          # go.mod and devbox.lock are part of the key because Go downloads
+          # toolchains into the module cache and those downloads never reach
+          # go.sum — see https://go.dev/doc/toolchain
+          key: ${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go.mod', 'go.sum', 'devbox.lock') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ runner.os }}-${{ runner.arch }}-go-
 
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.15.0
@@ -195,9 +198,12 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/Library/Caches/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          # go.mod and devbox.lock are part of the key because Go downloads
+          # toolchains into the module cache and those downloads never reach
+          # go.sum — see https://go.dev/doc/toolchain
+          key: ${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go.mod', 'go.sum', 'devbox.lock') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ runner.os }}-${{ runner.arch }}-go-
 
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.15.0
